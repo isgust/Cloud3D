@@ -1,25 +1,26 @@
-#Imports
+"""# **2. Import necessary library**"""
+
 import os
 import glob
 import trimesh
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
-from tensorflow.keras import layers 
+from tensorflow.keras import layers
 from matplotlib import pyplot as plt
 
 tf.random.set_seed(1234)
 
-#Download do pointcloud data
+"""# **3. Download the pointcloud data**"""
 
 DATA_DIR = tf.keras.utils.get_file(
     "modelnet.zip",
     "http://3dvision.princeton.edu/projects/2014/3DShapeNets/ModelNet10.zip",
     extract=True,
 )
-DATA_DIR = os.path.join(os.path.dirname(DATA_DIR), "ModelNet10")
+DATA_DIR = os.path.join(os.path.dirname(DATA_DIR), "modelnet_extracted","ModelNet10")
 
-#Visualize pointcloud data
+"""# **4. Visualize the pointcloud data**"""
 
 mesh = trimesh.load(os.path.join(DATA_DIR, "chair/train/chair_0002.off"))
 mesh.show()
@@ -31,6 +32,8 @@ ax = fig.add_subplot(111, projection="3d")
 ax.scatter(points[:, 0], points[:, 1], points[:, 2])
 ax.set_axis_off()
 plt.show()
+
+"""# **5. Data preprocessing and augmentation**"""
 
 def parse_dataset(num_points=2048):
 
@@ -98,7 +101,6 @@ def dense_bn(x, filters):
     x = layers.BatchNormalization(momentum=0.0)(x)
     return layers.Activation("relu")(x)
 
-
 class OrthogonalRegularizer(keras.regularizers.Regularizer):
     def __init__(self, num_features, l2reg=0.001):
         self.num_features = num_features
@@ -110,7 +112,12 @@ class OrthogonalRegularizer(keras.regularizers.Regularizer):
         xxt = tf.tensordot(x, x, axes=(2, 2))
         xxt = tf.reshape(xxt, (-1, self.num_features, self.num_features))
         return tf.reduce_sum(self.l2reg * tf.square(xxt - self.eye))
-    
+
+"""# **6. Building the model**
+
+<img src="https://www.researchgate.net/publication/343806184/figure/fig2/AS:930138283835393@1598773656168/PointNet-10-and-PointNet-12-architectures.jpg" alt="centered image" />
+"""
+
 def tnet(inputs, num_features):
 
     # Initalise bias as the indentity matrix
@@ -131,7 +138,7 @@ def tnet(inputs, num_features):
     )(x)
     feat_T = layers.Reshape((num_features, num_features))(x)
     # Apply affine transformation to input features
-    return layers.Dot(axes=(2, 1))([inputs, feat_T])    
+    return layers.Dot(axes=(2, 1))([inputs, feat_T])
 
 inputs = keras.Input(shape=(NUM_POINTS, 3))
 
@@ -153,6 +160,15 @@ outputs = layers.Dense(NUM_CLASSES, activation="softmax")(x)
 model = keras.Model(inputs=inputs, outputs=outputs, name="pointnet")
 model.summary()
 
+model.compile(
+    loss="sparse_categorical_crossentropy",
+    optimizer=keras.optimizers.Adam(learning_rate=0.001),
+    metrics=["sparse_categorical_accuracy"],
+)
+
+model.fit(train_dataset, epochs=20, validation_data=test_dataset)
+
+"""# **7. Test data and Visualize**"""
 
 data = test_dataset.take(1)
 
@@ -178,3 +194,6 @@ for i in range(8):
     )
     ax.set_axis_off()
 plt.show()
+
+
+
